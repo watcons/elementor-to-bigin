@@ -46,23 +46,29 @@ jobs:
           HOSTING_SSH_USER: ${{ secrets.HOSTING_SSH_USER }}
           HOSTING_SSH_KEY: ${{ secrets.HOSTING_SSH_KEY }}
 
-      - name: Stop the node app
-        run: ssh hosting "/usr/sbin/cloudlinux-selector stop --json --interpreter nodejs --app-root $HOSTING_APP_ROOT"
+      - name: Destroy and remove the existing node app, if any
+        run: |
+          ssh hosting <<EOF 
+          /usr/sbin/cloudlinux-selector destroy --json --interpreter nodejs --app-root $HOSTING_APP_ROOT
+          rm -r $HOSTING_APP_ROOT
+          EOF
 
-      - name: Remove old distribution
-        run: ssh hosting "rm -rf $HOSTING_APP_ROOT/dist"
+      - name: Create and stop the new node app
+        run: |
+          ssh hosting <<EOF
+          /usr/sbin/cloudlinux-selector create --json --interpreter nodejs --domain $HOSTING_APP_DOMAIN --app-root $HOSTING_APP_ROOT --app-uri / --version 22 --app-mode production --startup-file dist/src/index.js
+          /usr/sbin/cloudlinux-selector stop --json --interpreter nodejs --app-root $HOSTING_APP_ROOT
+          EOF
 
-      - name: Copy package file
-        run: scp package.json "hosting:$HOSTING_APP_ROOT"
-
-      - name: Copy package lock
-        run: scp package-lock.json "hosting:$HOSTING_APP_ROOT"
+      - name: Copy package.json and package-lock.json files
+        run: scp package.json package-lock.json "hosting:$HOSTING_APP_ROOT"
 
       - name: Copy distribution
         run: scp -r dist/ "hosting:$HOSTING_APP_ROOT"
 
-      - name: Install modules
-        run: ssh hosting "/usr/sbin/cloudlinux-selector install-modules --json --interpreter nodejs --app-root $HOSTING_APP_ROOT"
-
-      - name: Start the node app
-        run: ssh hosting "/usr/sbin/cloudlinux-selector start --json --interpreter nodejs --app-root $HOSTING_APP_ROOT"
+      - name: Install modules and start the node app
+        run: |
+          ssh hosting <<EOF
+          /usr/sbin/cloudlinux-selector install-modules --json --interpreter nodejs --app-root $HOSTING_APP_ROOT
+          /usr/sbin/cloudlinux-selector start --json --interpreter nodejs --app-root $HOSTING_APP_ROOT
+          EOF
